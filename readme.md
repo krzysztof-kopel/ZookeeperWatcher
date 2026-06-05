@@ -1,0 +1,2 @@
+# ZooKeeper watcher app
+Program watching for the creation of a specific ZooKeeper node (`/a`) and launching user-specified app (installed on local PC) when that node is created. When the node is deleted, the app is exited.  
