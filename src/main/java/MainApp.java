@@ -1,9 +1,7 @@
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.WatchedEvent;
-import org.apache.zookeeper.Watcher;
-import org.apache.zookeeper.ZooKeeper;
+import org.apache.zookeeper.*;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 public class MainApp implements org.apache.zookeeper.Watcher {
@@ -22,8 +20,7 @@ public class MainApp implements org.apache.zookeeper.Watcher {
 
             countdown.await();
             System.out.println("Connection established.");
-
-            zooKeeper.exists("/a", true);
+            zooKeeper.addWatch("/a", app, AddWatchMode.PERSISTENT_RECURSIVE);
 
             while (true) {
                 Thread.sleep(Long.MAX_VALUE);
@@ -43,16 +40,19 @@ public class MainApp implements org.apache.zookeeper.Watcher {
             }
         }
 
+
         String path = watchedEvent.getPath();
-        if (path != null && path.equals("/a")) {
-            if (watchedEvent.getType() == Watcher.Event.EventType.NodeCreated) {
+        if (path != null) {
+            if (watchedEvent.getType() == Watcher.Event.EventType.NodeCreated && path.equals("/a")) {
                 System.out.println("Node created");
                 startProcess();
-                setWatcher();
-            } else if (watchedEvent.getType() == Watcher.Event.EventType.NodeDeleted) {
+            } else if (watchedEvent.getType() == Watcher.Event.EventType.NodeDeleted && path.equals("/a")) {
                 System.out.println("Node deleted");
                 stopProcess();
-                setWatcher();
+            } else if (watchedEvent.getType() == Event.EventType.NodeCreated && path.startsWith("/a")) {
+                System.out.printf("Number of descendants: %d\n", this.countChildren("/a"));
+                System.out.println("Descedant tree:");
+                printTree("/a", 0);
             }
         }
     }
@@ -74,11 +74,31 @@ public class MainApp implements org.apache.zookeeper.Watcher {
         }
     }
 
-    private void setWatcher() {
+    private int countChildren(String currentNode) {
         try {
-            zooKeeper.exists("/a", true);
-        } catch (Exception e) {
-            e.printStackTrace();
+            List<String> children = zooKeeper.getChildren(currentNode, false);
+            int counter = children.size();
+            return counter + children.stream()
+                    .map(x -> countChildren(getChildPath(currentNode, x)))
+                    .reduce(Integer::sum)
+                    .orElse(0);
+        } catch (KeeperException | InterruptedException e) {
+            System.err.println("Exception: " + e.getMessage());
         }
+        return 0;
+    }
+
+    private void printTree(String treeStart, int tabulation) {
+        System.out.println("\t".repeat(tabulation) + treeStart);
+        try {
+            zooKeeper.getChildren(treeStart, false)
+                    .forEach(x -> printTree(getChildPath(treeStart, x), tabulation + 1));
+        } catch (KeeperException | InterruptedException e) {
+            System.err.println("Exception: " + e.getMessage());
+        }
+    }
+
+    private String getChildPath(String current, String child) {
+        return current.endsWith("/") ? current + child : current + "/" + child;
     }
 }
