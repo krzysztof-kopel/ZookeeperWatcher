@@ -16,7 +16,7 @@ public class MainApp implements org.apache.zookeeper.Watcher {
         MainApp app = new MainApp();
 
         try {
-            zooKeeper = new ZooKeeper("localhost:2181", 3000, app);
+            zooKeeper = new ZooKeeper("localhost:2181,localhost:2182,localhost:2183", 10000, app);
 
             countdown.await();
             System.out.println("Connection established.");
